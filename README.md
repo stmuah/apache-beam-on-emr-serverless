@@ -56,8 +56,8 @@ The solution builds a custom Amazon EMR serverless Spark image that allows Apach
 
 ## Create and attach the required AWS policy to the non-admin __beam-blog-user__
 
-1.  As the pre-requisite administrative user, use the below policy document to create a __beam-blog-policy__ and attach it to the pre-requisite non-administrative user, beam-blog-user:
-![Animated steps](./images/Picture1.gif)
+1. As the pre-requisite administrative user, use the below policy document to create a __beam-blog-policy__ and attach it to the pre-requisite non-administrative user, beam-blog-user:
+![Animated steps](./images/image2.gif)
 ```json
 {
 
@@ -157,7 +157,7 @@ You will use the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/gett
 
 ## Initialize session environment variables
 
-2.  Run the commands below to set environment variables for the AWS account ID and build environment hardware architecture.  The hardware architecture must match the targeted EMR serverless runtime (i.e. X86-64 to X86-64 and ARM64 to ARM64).  Note that Mac silicon may return aarch64, which is replaceable by arm64 for this walkthrough.  The command below handles this substitution and stores the AWS account ID in the ACCOUNT_ID variable.  You can always see the variable's value by running “echo $variablename.”  For example, echo $ACCOUNT_ID will print out the value of the account ID.
+2. Run the commands below to set environment variables for the AWS account ID and build environment hardware architecture.  The hardware architecture must match the targeted EMR serverless runtime (i.e. X86-64 to X86-64 and ARM64 to ARM64).  Note that Mac silicon may return aarch64, which is replaceable by arm64 for this walkthrough.  The command below handles this substitution and stores the AWS account ID in the ACCOUNT_ID variable.  You can always see the variable's value by running “echo $variablename.”  For example, echo $ACCOUNT_ID will print out the value of the account ID.
 
 ```bash
    ARCHITECTURE=$(uname -m | awk '{print toupper($0)}')
@@ -171,7 +171,7 @@ You will use the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/gett
 
 ## Create a working directory and Amazon S3 bucket
 
-3.  Run the commands below to create a working directory and change it into the created directory. Then, make a bucket in your AWS account to upload the example Beam pipeline application, input file, and output from the pipeline execution.
+3. Run the commands below to create a working directory and change it into the created directory. Then, make a bucket in your AWS account to upload the example Beam pipeline application, input file, and output from the pipeline execution.
 
 ```bash
     mkdir beam-demo && cd beam-demo
@@ -181,7 +181,7 @@ You will use the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/gett
 
 ## Create a virtual Python environment
 
-4.  Run the commands below to create, activate, and install build requirements in a virtual Python environment. This step is important as it provides dependencies isolation between Beam requirements and those of the default EMR Serverless Python configuration.
+4. Run the commands below to create, activate, and install build requirements in a virtual Python environment. This step is important as it provides dependencies isolation between Beam requirements and those of the default EMR Serverless Python configuration.
 
 ```bash
     python3 -m venv build-environment && \
@@ -191,191 +191,134 @@ You will use the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/gett
     s3fs \
     boto3
 ```
-![Animated Steps](./images/Picture2.gif)
+![Animated Steps](./images/image3.gif)
 
-Package example Beam pipeline
+## Package example Beam pipeline
 
-This section outlines the steps to build, package, and deploy the example Apache Beam wordcount pipeline. EMR Serverless allows the deployment and execution of Hive and Spark applications, and Apache Beam allows targeting multiple runtime environments. We use the  example and target the Spark runtime on EMR.
+This section outlines the steps to build, package, and deploy the example Apache Beam wordcount pipeline. EMR Serverless allows the deployment and execution of Hive and Spark applications, and Apache Beam allows targeting multiple runtime environments. We use the  [wordcount](https://raw.githubusercontent.com/apache/beam/master/sdks/python/apache_beam/examples/wordcount.py) example and targeting the Spark runtime on EMR.
 
-Build, package, and deploy Beam pipeline with dependencies
+## Build, package, and deploy Beam pipeline with dependencies
 
-Download the  example program and the sample input file, from your local beam-demo directory. The wordcount Python example demonstrates an Apache Beam pipeline with the following stages: read files, split words, map, group, and sum word counts, and write output to files.  The command below downloads these required files.
+5. Download the [wordcount.py](https://raw.githubusercontent.com/apache/beam/master/sdks/python/apache_beam/examples/wordcount.py) example program and the sample input file, from your local beam-demo directory. The wordcount Python example demonstrates an Apache Beam pipeline with the following stages: read files, split words, map, group, and sum word counts, and write output to files.  The command below downloads these required files.
 
+```bash
+curl -O https://raw.githubusercontent.com/apache/beam/master/sdks/python/apache_beam/examples/wordcount.py
 
-
-curl -O 
-
-
-
-curl -O 
+curl -O https://raw.githubusercontent.com/cs109/2015/master/Lectures/Lecture15b/sparklect/shakes/kinglear.txt
 
 aws s3 cp kinglear.txt s3://${ACCOUNT_ID}-beam-blog-bucket/
+```
 
+6. To run an Apache Beam Python pipeline on EMR Serverless, the pipeline must be packaged with all its dependencies into a single jar file called “fat jar.” Use the below command to create a fat jar for the wordcount pipeline. We use the wordcount example “as-is”. The command uses the ACCOUNT_ID environment variable to resolve the bucket created in the previous step dynamically. Once the wordcountApp.jar is made, the generated file is uploaded to the S3 bucket.
 
-
-To run an Apache Beam Python pipeline on EMR Serverless, the pipeline must be packaged with all its dependencies into a single jar file called “fat jar.” Use the below command to create a fat jar for the wordcount pipeline. We use the wordcount example “as-is”. The command uses the ACCOUNT_ID environment variable to resolve the bucket created in the previous step dynamically. Once the wordcountApp.jar is made, the generated file is uploaded to the S3 bucket.
-
-
-
-python3 wordcount.py --output_executable_path=./wordcountApp.jar \
---runner=SparkRunner \
---environment_type=PROCESS \
---environment_config='{"command":"/opt/apache/beam/boot"}' \
---input=s3://${ACCOUNT_ID}-beam-blog-bucket/kinglear.txt \
---output=s3://${ACCOUNT_ID}-beam-blog-bucket/output.txt
-
-
+```bash
+    python3 wordcount.py --output_executable_path=./wordcountApp.jar \
+    --runner=SparkRunner \
+    --environment_type=PROCESS \
+    --environment_config='{"command":"/opt/apache/beam/boot"}' \
+    --input=s3://${ACCOUNT_ID}-beam-blog-bucket/kinglear.txt \
+    --output=s3://${ACCOUNT_ID}-beam-blog-bucket/output.txt
 
 aws s3 cp wordcountApp.jar s3://${ACCOUNT_ID}-beam-blog-bucket/app/
+```
+![Animated Steps](./images/image4.gif)
 
-Create and deploy custom EMR Serverless image to Amazon ECR
+## Create and deploy custom EMR Serverless image to Amazon ECR
 
 To create, build, and use a custom Amazon EMR Serverless image, it is necessary to have a private repository in Amazon ECR (Elastic Container Registry). This private ECR repository will store your custom EMR Serverless container images, which are required for EMR Serverless to access and execute your specific configurations and dependencies. By setting up and using an ECR private repository, you can securely manage, version, and deploy custom images tailored for your EMR Serverless applications.
 
-Create a repository named beam-blog-repo.
+7. Create a repository named __beam-blog-repo__.
 
-aws ecr create-repository --repository-name beam-blog-repo --region us-east-1
+```bash
+    aws ecr create-repository --repository-name beam-blog-repo --region us-east-1
+```
 
+8. Create and attach a trust policy for the Amazon Elastic Container Registry (Amazon ECR) that provides the permissions needed to upload and access the custom EMR serverless image.
 
-Create and attach a trust policy for the Amazon Elastic Container Registry (Amazon ECR) that provides the permissions needed to upload and access the custom EMR serverless image.
-
-aws ecr set-repository-policy --repository-name beam-blog-repo --region us-east-1  --policy-text '{
+```bash
+   aws ecr set-repository-policy --repository-name beam-blog-repo --region us-east-1  --policy-text '{
 
     "Version": "2008-10-17",
-
     "Statement": [
-
       {
-
         "Sid": "allow pull and push",
-
         "Effect": "Allow",
-
         "Principal": {"AWS":"*"},
-
         "Action": [
-
           "ecr:GetDownloadUrlForLayer",
-
           "ecr:BatchGetImage",
-
           "ecr:DescribeImages",
-
           "ecr:BatchCheckLayerAvailability",
-
           "ecr:PutImage",
-
           "ecr:InitiateLayerUpload",
-
           "ecr:UploadLayerPart",
-
           "ecr:CompleteLayerUpload"
-
         ]
-
       }
-
     ]
-
   }' --force
+```
 
+9. Authenticate the Docker client to the Amazon ECR service by running the below command.  This is required when you are accessing private repositories.
 
-
-Authenticate the Docker client to the Amazon ECR service by running the below command.  This is required when you are accessing private repositories.
-
-
-
+```bash
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+```
 
+10. Run the below command to create a Docker build file, __Dockerfile__, in the working directory.  The file uses EMR serverless spark version 7.4 as its base image.  It compiles Python 3.11.10 from source, creates a Python virtual environment, install Beam SDK 2.58.0, like the one in the build environment, and sets the virtual environment as the default runtime environment. In Apache Beam 2.44.0 and later, workers create a virtual environment when starting a custom container. If the container creates its own virtual environment to install dependencies, those dependencies are discarded. It is important to activate the Beam environment in your container image by setting the RUN_PYTHON_SDK_IN_DEFAULT_ENVIRONMENT=1:
 
-
-Run the below command to create a Docker build file, Dockerfile, in the working directory.  The file uses EMR serverless spark version 7.4 as its base image.  It compiles Python 3.11.10 from source, creates a Python virtual environment, install Beam SDK 2.58.0, like the one in the build environment, and sets the virtual environment as the default runtime environment. In Apache Beam 2.44.0 and later, workers create a virtual environment when starting a custom container. If the container creates its own virtual environment to install dependencies, those dependencies are discarded. It is important to activate the Beam environment in your container image by setting the RUN_PYTHON_SDK_IN_DEFAULT_ENVIRONMENT=1:
-
-
-
-echo 'FROM public.ecr.aws/emr-serverless/spark/emr-6.15.0:latest
-
-
+```docker
+   echo 'FROM public.ecr.aws/emr-serverless/spark/emr-6.15.0:latest
 
 USER root
 
 ARG PYTHON_VERSION=3.11.10
-
 ARG BEAM_VERSION=2.58.0
 
-
-
 RUN yum install -y gcc openssl11-devel xz-devel lzma liblzma-dev libbz2-dev bzip2-devel libffi-devel tar gzip wget make && \
-
-    wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
-
+wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
     tar xzf Python-${PYTHON_VERSION}.tgz && \
-
     cd Python-${PYTHON_VERSION} && \
-
     ./configure --enable-optimizations && \
-
     make install
-
  
-
 ENV VIRTUAL_ENV=/opt/venv
-
 RUN python3 -m venv $VIRTUAL_ENV --copies
-
 RUN cp -r /usr/local/lib/python3.11/* $VIRTUAL_ENV/lib/python3.11 
-
-
 
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
- 
-
 RUN python3 -m pip install --upgrade pip && \
-
     python3 -m pip install apache_beam==${BEAM_VERSION} \
-
     s3fs \
-
     boto3
 
- 
-
 ENV PYSPARK_PYTHON="/opt/venv/bin/python3"
-
 ENV PYSPARK_DRIVER_PYTHON="/opt/venv/bin/python3"
-
 ENV RUN_PYTHON_SDK_IN_DEFAULT_ENVIRONMENT=1
-
 COPY --from=apache/beam_python3.11_sdk:2.58.0 /opt/apache/beam /opt/apache/beam
-
 USER hadoop:hadoop' > Dockerfile
+```
 
+11. Once the Dockerfile file is created, run the commands below to build, tag, and upload the custom image to the ECR repository. The first command uses the Docker client to build a custom EMR serverless container image, and the next command uploads the custom image to ECR, where it is accessible privately in the AWS account:
 
-
-Once the Dockerfile file is created, run the commands below to build, tag, and upload the custom image to the ECR repository. The first command uses the Docker client to build a custom EMR serverless container image, and the next command uploads the custom image to ECR, where it is accessible privately in the AWS account:
-
-
-
+```bash
 docker build . --tag ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/beam-blog-repo:blog-image
 
-
-
 docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/beam-blog-repo:blog-image
+```
+![Animated Steps](./images/image5.gif)
 
-
-
-Create an EMR serverless application using the custom image
+## Create an EMR serverless application using the custom image
 
 After the Beam pipeline is packaged and uploaded to Amazon S3 and the customized EMR serverless image is uploaded to Amazon ECR, we are ready to create and configure a serverless application where the pipeline will be deployed and run.  The steps required are building an application referencing the custom image, creating an EMR serverless runtime role with the required permissions to access resources needed, and launching and monitoring the application.
 
-Create an EMR serverless application
+### Create an EMR serverless application
 
-Copy and run the text below in the terminal to create an EMR serverless application applicable to building hardware architecture in your AWS account.  The JSON configuration is assigned to a variable, APP_TEXT, to allow dynamic replacement for your environment ACCOUNT_ID and ARCHITECTURE that was set earlier:
+12. Copy and run the text below in the terminal to create an EMR serverless application applicable to building hardware architecture in your AWS account.  The JSON configuration is assigned to a variable, APP_TEXT, to allow dynamic replacement for your environment ACCOUNT_ID and ARCHITECTURE that was set earlier:
 
-
-
-echo '{
+```bash
+    echo '{
        "name": "app-beam-blog",
        "releaseLabel": "emr-6.15.0",
        "type": "Spark",
@@ -416,35 +359,26 @@ echo '{
 }' > application.json
 
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-
-    sed -i '' "s/ARCHITECTURE_PLACEHOLDER/$ARCHITECTURE/g" application.json
-
-    sed -i '' "s/ACCOUNT_ID_PLACEHOLDER/$ACCOUNT_ID/g" application.json
-
-else
-
-    sed -i "s/ARCHITECTURE_PLACEHOLDER/$ARCHITECTURE/g" application.json
-
-    sed -i "s/ACCOUNT_ID_PLACEHOLDER/$ACCOUNT_ID/g" application.json
-
-fi
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/ARCHITECTURE_PLACEHOLDER/$ARCHITECTURE/g" application.json
+        sed -i '' "s/ACCOUNT_ID_PLACEHOLDER/$ACCOUNT_ID/g" application.json
+    else
+        sed -i "s/ARCHITECTURE_PLACEHOLDER/$ARCHITECTURE/g" application.json
+        sed -i "s/ACCOUNT_ID_PLACEHOLDER/$ACCOUNT_ID/g" application.json
+    fi
+```
 
 
+13. Create the Amazon EMR Serverless application using the application.json.  The created APPLICATION_ID is saved into a variable for use in subsequent steps.
 
-Create the Amazon EMR Serverless application using the application.json.  The created APPLICATION_ID is saved into a variable for use in subsequent steps.
+```bash
+    APPLICATION_ID=$(aws emr-serverless create-application --cli-input-json file://application.json --output text --query applicationId --region us-east-1)
+```
 
+14. Run the command below to copy the below JSON text into a file named emrtrustpolicy.json.  The trust policy is used to create the EMR runtime role named beam-blog-emrserverless-role:
 
-
-APPLICATION_ID=$(aws emr-serverless create-application --cli-input-json file://application.json --output text --query applicationId --region us-east-1)
-
-
-
-Run the command below to copy the below JSON text into a file named emrtrustpolicy.json.  The trust policy is used to create the EMR runtime role named beam-blog-emrserverless-role:
-
-
-
-echo '{
+```bash
+    echo '{
        "Version": "2012-10-17",
        "Statement": [
            {
@@ -458,17 +392,13 @@ echo '{
        ]
 }' > emrtrustpolicy.json && \
 
+    aws iam create-role --assume-role-policy-document file://emrtrustpolicy.json  --role-name beam-blog-emrserverless-role --region us-east-1
+```
 
+15. Create and attach two policies to the runtime role.  The policies will allow the runtime role access to Amazon S3 and CloudWatch logs.  In a production environment, policies and permissions should follow the [AWS Security Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html):
 
-aws iam create-role --assume-role-policy-document file://emrtrustpolicy.json  --role-name beam-blog-emrserverless-role --region us-east-1
-
-
-
-Create and attach two policies to the runtime role.  The policies will allow the runtime role access to Amazon S3 and CloudWatch logs.  In a production environment, policies and permissions should follow the :
-
-
-
-echo '{
+```bash
+    echo '{
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -484,30 +414,23 @@ echo '{
   ]
 }' > s3policy.json
 
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/ACCOUNT_ID/$ACCOUNT_ID/g" s3policy.json
+    else
+        sed -i "s/ACCOUNT_ID/$ACCOUNT_ID/g" s3policy.json
+    fi
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+    aws iam create-policy \
+        --policy-name beam-blog-runtime-policy \
+        --policy-document file://s3policy.json
 
-sed -i '' "s/ACCOUNT_ID/$ACCOUNT_ID/g" s3policy.json
+    aws iam attach-role-policy --role-name beam-blog-emrserverless-role --region us-east-1  --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-runtime-policy
+```
 
-else
+16. Create and attach CloudWatch policy to runtime role:
 
-sed -i "s/ACCOUNT_ID/$ACCOUNT_ID/g" s3policy.json
-
-fi
-
-
-
-aws iam create-policy \
-    --policy-name beam-blog-runtime-policy \
-    --policy-document file://s3policy.json
-
-aws iam attach-role-policy --role-name beam-blog-emrserverless-role --region us-east-1  --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-runtime-policy
-
-
-
-Create and attach CloudWatch policy to runtime role:
-
-echo '{
+```bash
+    echo '{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -524,30 +447,22 @@ echo '{
     ]
 }' > cloudWatchpolicy.json
 
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/ACCOUNT_ID/$ACCOUNT_ID/g" cloudWatchpolicy.json
+    else
+        sed -i "s/ACCOUNT_ID/$ACCOUNT_ID/g" cloudWatchpolicy.json
+    fi
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+    aws iam create-policy \
+        --policy-name beam-blog-cloudwatch-policy \
+        --policy-document file://cloudWatchpolicy.json
 
-sed -i '' "s/ACCOUNT_ID/$ACCOUNT_ID/g" cloudWatchpolicy.json
+    aws iam attach-role-policy --role-name beam-blog-emrserverless-role --region us-east-1  --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-cloudwatch-policy
+```
 
-else
-
-sed -i "s/ACCOUNT_ID/$ACCOUNT_ID/g" cloudWatchpolicy.json
-
-fi
-
-
-
-aws iam create-policy \
-    --policy-name beam-blog-cloudwatch-policy \
-    --policy-document file://cloudWatchpolicy.json
-
-aws iam attach-role-policy --role-name beam-blog-emrserverless-role --region us-east-1  --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-cloudwatch-policy
-
-
-
-Create and attach an “iam:PassRole” policy to the AWSCloud9SSMAccessRole to allow it to pass the runtime role when it starts a serverless job:
-
-echo '{
+17. Create and attach an “iam:PassRole” policy to the AWSCloud9SSMAccessRole to allow it to pass the runtime role when it starts a serverless job:
+```bash
+    echo '{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -559,192 +474,125 @@ echo '{
     ]
 }' > beamBlogPassRolePolicy.json
 
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/ACCOUNT_ID/$ACCOUNT_ID/g" beamBlogPassRolePolicy.json
+    else
+        sed -i "s/ACCOUNT_ID/$ACCOUNT_ID/g" beamBlogPassRolePolicy.json
+    fi
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+    aws iam create-policy \
+        --policy-name beam-blog-pass-role-policy \
+        --policy-document 
 
-sed -i '' "s/ACCOUNT_ID/$ACCOUNT_ID/g" beamBlogPassRolePolicy.json
+    aws iam attach-user-policy --user-name beam-blog-user --region us-east-1  --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-pass-role-policy
+```
 
-else
+18. The command below dynamically sets the location of the packaged fatJar using environment variables. The packaged pipeline is then executed on the EMR Serverless application by starting the job. The initial submission of the job will take about 5 minutes.
 
-sed -i "s/ACCOUNT_ID/$ACCOUNT_ID/g" beamBlogPassRolePolicy.json
-
-fi
-
-
-
-aws iam create-policy \
-    --policy-name beam-blog-pass-role-policy \
-    --policy-document 
-
-
-
-aws iam attach-user-policy --user-name beam-blog-user --region us-east-1  --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-pass-role-policy
-
-
-
-The command below dynamically sets the location of the packaged fatJar using environment variables. The packaged pipeline is then executed on the EMR Serverless application by starting the job. The initial submission of the job will take about 5 minutes.
-
-
-
-ENTRYPOINT='{
-"sparkSubmit": {
-"entryPoint": "s3://ACCOUNT_ID-beam-blog-bucket/app/wordcountApp.jar",
+```bash
+    ENTRYPOINT='{
+    "sparkSubmit": {
+    "entryPoint": "s3://ACCOUNT_ID-beam-blog-bucket/app/wordcountApp.jar",
                "sparkSubmitParameters": "--verbose --class org.apache.beam.runners.spark.SparkPipelineRunner --conf spark.emr-serverless.driverEnv.PYSPARK_DRIVER_PYTHON=/opt/venv/bin/python3 --conf spark.emr-serverless.driverEnv.PYSPARK_PYTHON=/opt/venv/bin/python3 --conf spark.executorEnv.PYSPARK_PYTHON=/opt/venv/bin/python3"}
 }'
-ENTRYPOINT=${ENTRYPOINT/ACCOUNT_ID/$ACCOUNT_ID}
-JOBRUN_ID=$(aws emr-serverless start-job-run \
---application-id $APPLICATION_ID \
---execution-role-arn arn:aws:iam::${ACCOUNT_ID}:role/beam-blog-emrserverless-role \
---region us-east-1 \
---job-driver "${ENTRYPOINT}" --output text --query jobRunId)
 
+    ENTRYPOINT=${ENTRYPOINT/ACCOUNT_ID/$ACCOUNT_ID}
+    JOBRUN_ID=$(aws emr-serverless start-job-run \
+    --application-id $APPLICATION_ID \
+    --execution-role-arn arn:aws:iam::${ACCOUNT_ID}:role/beam-blog-emrserverless-role \
+    --region us-east-1 \
+    --job-driver "${ENTRYPOINT}" --output text --query jobRunId)
+```
 
+19. The below command uses the AWS CLI to monitor the status of the submitted job.  When the job status is RUNNING, it outputs to the terminal windows a secure URL to access the Spark history server, where you can visually see details about the execution:
 
-The below command uses the AWS CLI to monitor the status of the submitted job.  When the job status is RUNNING, it outputs to the terminal windows a secure URL to access the Spark history server, where you can visually see details about the execution:
-
-
-
-JOBSTATUS=$(aws emr-serverless get-job-run --application-id=$APPLICATION_ID --job-run-id=$JOBRUN_ID --region=us-east-1 --output text --query jobRun.state)
-
-
-
-while [[ "$JOBSTATUS" != "RUNNING" && "$JOBSTATUS" != "SUCCESS" ]]; do
-
-    sleep 5
-
+```bash
     JOBSTATUS=$(aws emr-serverless get-job-run --application-id=$APPLICATION_ID --job-run-id=$JOBRUN_ID --region=us-east-1 --output text --query jobRun.state)
 
+    while [[ "$JOBSTATUS" != "RUNNING" && "$JOBSTATUS" != "SUCCESS" ]]; do
+        sleep 5
+        JOBSTATUS=$(aws emr-serverless get-job-run --application-id=$APPLICATION_ID --job-run-id=$JOBRUN_ID --region=us-east-1 --output text --query jobRun.state)
+
+        echo $JOBSTATUS
+    done
     echo $JOBSTATUS
 
-done
+    URL=$( aws emr-serverless get-dashboard-for-job-run --application-id $APPLICATION_ID --job-run-id $JOBRUN_ID --region us-east-1 --output text --query url)
 
-echo $JOBSTATUS
+    echo $URL
+```
 
+![Animated Steps](./images/image6.gif)
 
-
-URL=$( aws emr-serverless get-dashboard-for-job-run --application-id $APPLICATION_ID --job-run-id $JOBRUN_ID --region us-east-1 --output text --query url)
-
-
-
-echo $URL
-
-
-
-Monitor job run and output
+## Monitor job run and output
 
 Click on the URL to open the Spark History Server:
 
+![Animated Step](./images/image7.gif)
 
-
-Once the job completes successfully, the output files (output.txt-*) containing words found in the input text and the count of each occurrence can be downloaded from the S3 bucket by running the below commands to copy the outputs to your build environment:
-
-
-
+21. Once the job completes successfully, the output files (output.txt-*) containing words found in the input text and the count of each occurrence can be downloaded from the S3 bucket by running the below commands to copy the outputs to your build environment:
+```bash
 aws s3 ls s3://$ACCOUNT_ID-beam-blog-bucket/ 
+```
 
-
-
-Cleanup and delete AWS resources
+## Cleanup and delete AWS resources
 
 In this walkthrough, you created the following objects:
 
-Amazon IAM User
-
-Amazon IAM Policies
-
-Amazon EMR serverless application
-
-Amazon S3 bucket
-
-Amazon ECR private repository
-
-EMR serverless runtime role
+* Amazon IAM User
+* Amazon IAM Policies
+* Amazon EMR serverless application
+* Amazon S3 bucket
+* Amazon ECR private repository
+* EMR serverless runtime role
 
 
+You can clean up objects created to avoid running costs by having the administrative user execute the commands below in the given order. This can be done in AWS CloudShell. Additionally, have the administrative user [delete](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_manage.html#id_users_deleting) the __beam-blog-user__.
 
-You can clean up objects created to avoid running costs by having the administrative user execute the commands below in the given order. This can be done in AWS CloudShell. Additionally, have the administrative user  the beam-blog-user. However, if you wish to test-drive the second part of this blog, Run Apache Beam Python Spark Pipelines on Amazon EMR on EKS, do not run the cleanup now as steps from this walkthrough are used:
-
-
-
+```bash
 aws iam detach-user-policy \
   --user-name beam-blog-user --region us-east-1 \
   --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-pass-role-policy
-
-
 
 aws iam detach-role-policy \
   --role-name beam-blog-emrserverless-role --region us-east-1 \
   --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-runtime-policy
 
-
-
 aws iam detach-role-policy \
   --role-name beam-blog-emrserverless-role --region us-east-1 \
   --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-cloudwatch-policy
-
-
 
 aws iam detach-user-policy \
   --user-name beam-blog-user --region us-east-1  \
   --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-policy
 
-
-
 aws iam delete-role --role-name beam-blog-emrserverless-role --region us-east-1 
-
-
 
 aws iam delete-policy --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-pass-role-policy
 
-
-
 aws iam delete-policy --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-runtime-policy 
-
-
 
 aws iam delete-policy --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/beam-blog-cloudwatch-policy 
 
-
-
 aws ecr delete-repository --repository-name beam-blog-repo --region us-east-1 --force 
-
-
 
 aws s3 rb s3://$ACCOUNT_ID-beam-blog-bucket --region us-east-1 --force 
 
-
-
 aws emr-serverless stop-application --application-id $APPLICATION_ID --region us-east-1
 
-
-
 aws emr-serverless delete-application --application-id $APPLICATION_ID --region us-east-1
+```
 
-
-
-Conclusion and next steps
+## Conclusion and next steps
 
 This post demonstrates how to package and run Apache Beam pipelines in Python on Amazon EMR Serverless. While this post focuses on a simple batch processing pipeline, the critical value proposition highlighted in the post is the ability to leverage the flexibility of Apache Beam pipelines while taking advantage of the serverless nature and scalability of EMR Serverless, simplifying the management of the underlying infrastructure. Additionally, the blog took a programmatic approach using the AWS CLI and Bash scripting targeting data engineers. It provided animated screens and comments, targeting those new to the AWS Cloud. 
 
+If you have any questions or feedback, please leave a comment. Check AWS [re:Post](https://repost.aws/) for additional discussions and answers to your questions.
 
+## Authors Bios
+__Bo Guan__ is a Sr. Solutions Architect at AWS, helping customers build, migrate, and manage their workloads on AWS. He is passionate about Containers, Observability, and Application Modernization.
 
-The second part of this blog walks you through running Apache Beam on Amazon EMR on EKS.  You can also explore the Apache Beam streaming workflow on AWS Managed Service for Apache Flink, which demonstrates how to run Apache Beam with Flink on Amazon EMR.
-
-If you have any questions or feedback, please leave a comment. Check AWS  for additional discussions and answers to your questions.
-
-Authors Bio
-
-
-
-
-
-Bo Guan is a Sr. Solutions Architect at AWS, helping customers build, migrate, and manage their workloads on AWS. He is passionate about Containers, Observability, and Application Modernization.
-
-
-
-
-
-Sebastian Muah is an AWS Sr. Specialist Solutions Architect focused on analytics, AI/ML, and big data. He has over 25 years of experience in information technology and helps customers architect and build highly scalable, performant, and secure cloud-based solutions on AWS.
+__Sebastian Muah__ is an AWS Sr. Specialist Solutions Architect focused on analytics, AI/ML, and big data. He has over 25 years of experience in information technology and helps customers architect and build highly scalable, performant, and secure cloud-based solutions on AWS.
 
 
 
