@@ -52,236 +52,146 @@ The table below shows the compatibility matrix.  These versions were tested and 
 | 3.11.x | 2.50.0 thru 2.58.0 | 7.x |
 
 
-
-
 The solution builds a custom Amazon EMR serverless Spark image that allows Apache Beam pipelines to run. This is demonstrated by packaging and running the example Beam wordcount pipeline on EMR Serverless and reviewing the outputs. You must download the example pipeline and the input data into your working folder.
 
-Create and attach the required AWS policy to the non-admin beam-blog-user
+## Create and attach the required AWS policy to the non-admin __beam-blog-user__
 
-As the pre-requisite administrative user, use the below policy document to create a beam-blog-policy and attach it to the pre-requisite non-administrative user, beam-blog-user:
-
-
-
+1.  As the pre-requisite administrative user, use the below policy document to create a __beam-blog-policy__ and attach it to the pre-requisite non-administrative user, beam-blog-user:
+![Animated steps](./images/Picture1.gif)
+```json
 {
 
     "Version": "2012-10-17",
 
     "Statement": [
-
         {
-
             "Sid": "ECRAccess",
-
             "Effect": "Allow",
-
             "Action": [
-
                 "ecr:CreateRepository",
-
                 "ecr:DeleteRepository",
-
                 "ecr:SetRepositoryPolicy",
-
                 "ecr:GetAuthorizationToken"
-
             ],
-
             "Resource": "arn:aws:ecr:us-east-1:*:repository/beam-blog-repo"
-
         },
-
         {
-
             "Sid": "ECRPublicAccess",
-
             "Effect": "Allow",
-
             "Action": "ecr-public:GetAuthorizationToken",
-
             "Resource": "*"
-
         },
-
         {
-
             "Sid": "EMRServerlessAccess",
-
             "Effect": "Allow",
-
             "Action": [
-
                 "emr-serverless:GetDashboardForJobRun",
-
                 "emr-serverless:CreateApplication",
-
                 "emr-serverless:StartJobRun",
-
                 "emr-serverless:StopApplication",
-
                 "emr-serverless:DeleteApplication",
-
                 "emr-serverless:GetJobRun"
-
             ],
-
             "Resource": "*"
-
         },
-
         {
-
             "Sid": "EMRServerlessServiceLinkedRole",
-
             "Effect": "Allow",
-
             "Action": "iam:CreateServiceLinkedRole",
-
             "Resource": "arn:aws:iam::*:role/aws-service-role/emr-serverless.amazonaws.com/*",
-
             "Condition": {
-
                 "StringLike": {
-
                     "iam:AWSServiceName": "emr-serverless.amazonaws.com"
-
                 }
-
             }
-
         },
-
         {
-
             "Sid": "IAMAccess",
-
             "Effect": "Allow",
-
             "Action": [
-
                 "iam:CreatePolicy",
-
                 "iam:DeletePolicy",
-
                 "iam:CreateRole",
-
                 "iam:AttachUserPolicy",
-
                 "iam:DetachUserPolicy",
-
                 "iam:DeleteRole",
-
                 "iam:AttachRolePolicy",
-
                 "iam:DetachRolePolicy"
-
             ],
-
             "Resource": [
-
                 "arn:aws:iam:::role/beam-blog*",
-
                 "arn:aws:iam:::policy/beam-blog*"
-
             ]
-
         },
-
         {
-
             "Sid": "S3Access",
-
             "Effect": "Allow",
-
             "Action": [
-
                 "s3:PutObject",
-
                 "s3:GetObject",
-
                 "s3:CreateBucket",
-
                 "s3:ListBucket",
-
                 "s3:DeleteObject",
-
                 "s3:DeleteBucket"
-
             ],
-
             "Resource": [
-
                 "arn:aws:s3:::*-beam-blog-bucket/*",
-
                 "arn:aws:s3:::*-beam-blog-bucket"
-
             ]
-
         },
-
         {
-
             "Sid": "STSAccess",
-
             "Effect": "Allow",
-
             "Action": "sts:GetServiceBearerToken",
-
             "Resource": "*"
-
         }
-
     ]
-
 }
-
-Setup build environment
+```  
+## Setup build environment
 
 The built environment is a local folder on a computer with all prerequisites and a Python virtual environment with the Beam SDK installed. When completed, the steps and instructions below create the build environment. 
 
 
+You will use the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and terminal commands for the rest of the walk-through. All commands should be run in a single terminal window, as sequenced in these steps, as session environment variables store values.
 
-You will use the  and terminal commands for the rest of the walk-through. All commands should be run in a single terminal window, as sequenced in these steps, as session environment variables store values.
+## Initialize session environment variables
 
-Initialize session environment variables
+2.  Run the commands below to set environment variables for the AWS account ID and build environment hardware architecture.  The hardware architecture must match the targeted EMR serverless runtime (i.e. X86-64 to X86-64 and ARM64 to ARM64).  Note that Mac silicon may return aarch64, which is replaceable by arm64 for this walkthrough.  The command below handles this substitution and stores the AWS account ID in the ACCOUNT_ID variable.  You can always see the variable's value by running “echo $variablename.”  For example, echo $ACCOUNT_ID will print out the value of the account ID.
 
-Run the commands below to set environment variables for the AWS account ID and build environment hardware architecture.  The hardware architecture must match the targeted EMR serverless runtime (i.e. X86-64 to X86-64 and ARM64 to ARM64).  Note that Mac silicon may return aarch64, which is replaceable by arm64 for this walkthrough.  The command below handles this substitution and stores the AWS account ID in the ACCOUNT_ID variable.  You can always see the variable's value by running “echo $variablename.”  For example, echo $ACCOUNT_ID will print out the value of the account ID.
+```bash
+   ARCHITECTURE=$(uname -m | awk '{print toupper($0)}')
 
+   if [[ "$ARCHITECTURE" == "AARCH"* ]]; then
+       ARCHITECTURE="ARM64"
+   fi
 
+   ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
+```
 
-ARCHITECTURE=$(uname -m | awk '{print toupper($0)}')
+## Create a working directory and Amazon S3 bucket
 
-if [[ "$ARCHITECTURE" == "AARCH"* ]]; then
+3.  Run the commands below to create a working directory and change it into the created directory. Then, make a bucket in your AWS account to upload the example Beam pipeline application, input file, and output from the pipeline execution.
 
-ARCHITECTURE="ARM64"
+```bash
+    mkdir beam-demo && cd beam-demo
 
-fi
+    aws s3 mb s3://${ACCOUNT_ID}-beam-blog-bucket --region us-east-1
+```
 
-ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)
+## Create a virtual Python environment
 
-Create a working directory and Amazon S3 bucket
+4.  Run the commands below to create, activate, and install build requirements in a virtual Python environment. This step is important as it provides dependencies isolation between Beam requirements and those of the default EMR Serverless Python configuration.
 
-Run the commands below to create a working directory and change it into the created directory. Then, make a bucket in your AWS account to upload the example Beam pipeline application, input file, and output from the pipeline execution.
-
-
-
-mkdir beam-demo && cd beam-demo
-
-aws s3 mb s3://${ACCOUNT_ID}-beam-blog-bucket --region us-east-1
-
-Create a virtual Python environment
-
-Run the commands below to create, activate, and install build requirements in a virtual Python environment. This step is important as it provides dependencies isolation between Beam requirements and those of the default EMR Serverless Python configuration.
-
-
-
-python3 -m venv build-environment && \
-source build-environment/bin/activate && \
-python3 -m pip install --upgrade pip && \
-python3 -m pip install apache_beam==2.58.0 \
+```bash
+    python3 -m venv build-environment && \
+    source build-environment/bin/activate && \
+    python3 -m pip install --upgrade pip && \
+    python3 -m pip install apache_beam==2.58.0 \
     s3fs \
     boto3
-
-
+```
+![Animated Steps](./images/Picture2.gif)
 
 Package example Beam pipeline
 
